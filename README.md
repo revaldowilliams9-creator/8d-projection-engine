@@ -1,58 +1,41 @@
-# 🌌 Object-Oriented 8D Hyperspace Projection Engine
+# 🌌 High-Performance 8D Hyperspace Projection Engine
 
-An advanced, production-grade real-time graphics visualization engine written in **Python** using an architectural **Object-Oriented Programming (OOP)** layout built on top of **Pygame Community Edition**. 
-
-This project isolates higher-dimensional mathematics, data containment models, and state controllers to compute, rotate, and project complex 8-dimensional geometric dataset point clouds down to an interactive 2D user matrix window.
+A lightweight, optimized real-time 8-dimensional geometry visualization pipeline built with **Python** and **Pygame Community Edition**. This framework collapses higher-dimensional data points down to an active 2D coordinate grid viewport using tightly optimized functional transformations.
 
 ---
 
-## 🛠️ Software Architecture Breakdown
+## 🚀 Engine Architecture & Optimizations
 
-The program transitions out of a standard script into a fully containerized, modular class architecture:
-
-* **`SimulationState` (Data Container):** A decoupled data model class managing global time tracking variables, speed constraints, rotational increments, and boolean control configurations.
-* **`Theme` (Data Container):** A frozen dataclass model managing independent RGB color configurations to isolate graphics logic from background state changes.
-* **`HyperBall` (Geometry Class):** Controls high-dimensional structural shape setups. It handles random Gaussian core point distribution algorithms and retains isolated positional tracking data.
-* **`HyperspaceVisualizer` (Core Pipeline Engine):** The master coordinator application containing individual system routines for event polling, state updates, coordinate tracking, and screen rendering passes.
-
----
-
-## 🚀 Engine Core Features
-
-* **Planar Hyperspace Interlock Engine:** Calculates simultaneous matrix transformations across 4 unique 8-dimensional axes (X₁ through X₈) using a centralized trigonometric computation module.
-* **Dual Projection Rendering Streams:** Dynamically switches mathematical pipelines between a strict, linear **Orthographic Slice** map and a depth-scaled **Perspective Distortion** layout.
-* **Decoupled Intersection Core Entity:** Isolates the mathematical center overlapping path of the shapes into a distinct **Pure White Core Sphere** that navigates on its own loop track.
-* **Structural Mesh Wireframes:** Interweaves low-alpha wire segments sequentially through neighboring particle junctions to draw an analytical mesh grid cage.
-* **Telemetry Control HUD Dashboard:** Displays metrics tracking rendering profiles, visual presets, real-time pixel distances, and separate particle speed tracks.
+* **Condensed Math Processing Pipeline:** Uses a direct data-stream structure to map trigonometric sine/cosine modifications across 4 unique coordinate planes simultaneously.
+* **Ultra-Lightweight Storage footprint:** Completely avoids runtime object initialization overhead by tracking data states inside compact, native list dictionaries.
+* **Dual Projection Pipelines:** Smoothly toggles display rendering equations from a depth-scaled **Perspective** model down to a flat, mechanical **Orthographic** slice map.
+* **Freely Orbiting Intersection Core:** Pinpoints the central spatial matrix overlapping junction using an independent **Pure White Core Sphere** running on its own calculation cycle.
+* **Analytical Structural Mesh Wireframe:** Weaves sequential bounding segments between cluster vertices, guarded by high-speed mathematical screen constraint checks.
 
 ---
 
-## 🎮 Interface & Interactive Command Keybinds
+## 🎮 Interface Interaction Binds
 
-Manage the projection tracking configurations in real time using interactive keyboard controls:
-
-| Hardware Key Input | UI Dashboard Action |
+| Input Command | System Telemetry Action |
 | :--- | :--- |
-| **`SPACEBAR`** | **Master Simulation Pause** (Freezes or resumes spatial coordinate timeline steps). |
-| **`P`** | **Toggle Projection Style** (Instantly flips graphic math between *Perspective* and *Orthographic* modes). |
-| **`UP / DOWN ARROWS`** | **Adjust Cloud Velocity** (Throttles the acceleration speed factor of the parent point clouds). |
-| **`W / S`** | **Adjust Center Core Velocity** (Independently accelerates or brakes the orbit speed track of the inner white sphere). |
-| **`M`** | **Toggle Wireframe Matrix** (Draws or hides the analytical line grids between nearest node vertices). |
-| **`T`** | **Cycle System Themes** (Morphs colors through *Deep Space*, *Matrix*, *Synthwave*, or *Mono* presets). |
-| **`ESC`** | **Graceful System Terminate** (Clears open memory threads and safely terminates window execution loops). |
+| **`SPACEBAR`** | **Master Pause Switch** (Freezes or resumes simulation loop calculations). |
+| **`P`** | **Toggle Projection Method** (Flips graphic pipeline between Perspective & Orthographic grids). |
+| **`UP / DOWN ARROWS`** | **Adjust Cloud Velocity** (Throttles the spinning acceleration speed factor of point clusters). |
+| **`W / S`** | **Adjust Center Core Velocity** (Independently steps the orbital speed track of the inner white sphere). |
+| **`M`** | **Toggle Wireframe Matrix** (Draws or flags away geometric line nets connecting items). |
+| **`T`** | **Cycle Active Color Themes** (Instantly morphs UI presets through Deep Space, Matrix, Cyber, or Mono). |
+| **`ESC`** | **Process Terminate** (Gracefully clears framework resource channels and exits the app). |
 
 ---
 
-## ⚙️ Quick Start Compilation Instructions
+## ⚙️ Quick Start Installation
 
-### 1. Framework Installation
-Verify your terminal has the modern, high-efficiency community framework extension built to compile stable loops under active Python runtimes:
+### 1. Framework Setup
 ```bash
 pip install pygame-ce
 ```
 
-### 2. Launch the Application
-Run the centralized engine wrapper execution entry point script from your development directory terminal:
+### 2. Execution Entry Point
 ```bash
 python hyperspace_visualizer.py
 ```
