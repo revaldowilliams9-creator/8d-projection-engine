@@ -8,12 +8,12 @@ pygame.init()
 
 W, H = 1000, 800
 screen = pygame.display.set_mode((W, H))
-pygame.display.set_caption("Hyperspace Grid View (8D Projected)")
+pygame.display.set_caption("Hyperspace Grid View (8D Projected) - Mouse Controls Enabled")
 clock = pygame.time.Clock()
 font = pygame.font.SysFont("Arial", 14)
 bold_font = pygame.font.SysFont("Arial", 14, bold=True)
 
-# ============ THEMES ============ 
+# ============ THEMES ============
 THEMES = {
     "Deep Space": {"bg": (13, 17, 23), "grid": (40, 44, 52), "text": (139, 148, 158), "a": (0, 191, 255), "b": (236, 72, 153), "glow": 20},
     "Matrix": {"bg": (5, 15, 5), "grid": (15, 45, 15), "text": (50, 180, 50), "a": (0, 255, 70), "b": (150, 255, 0), "glow": 15},
@@ -25,7 +25,7 @@ THEMES = {
     "Magenta": {"bg": (30, 15, 35), "grid": (60, 30, 70), "text": (255, 100, 200), "a": (255, 50, 150), "b": (200, 100, 255), "glow": 19},
 }
 
-# ============ CORE COLORS ============ 
+# ============ CORE COLORS ============
 CORE_COLORS = [
     (255, 255, 255),  # White
     (0, 255, 255),    # Cyan
@@ -40,7 +40,7 @@ CORE_COLORS = [
 CORE_NAMES = ["White", "Cyan", "Magenta", "Yellow", "Green", "Red", "Blue", "Orange"]
 THEME_NAMES = list(THEMES.keys())
 
-# ============ MATH ENGINE ============ 
+# ============ MATH ENGINE ============
 def rotate_8d(p, a):
     x1, x2, x3, x4, x5, x6, x7, x8 = p
     a1, a2, a3, a4 = a
@@ -60,11 +60,43 @@ def gen_ball(n, r, off):
 
 def draw_glow(surface, color, pos, radius, glow_size):
     for i in range(glow_size, 0, -1):
-        alpha = int(255 * (1 - i / glow_size) * 0.3)
+        alpha = int(255 * (1 - i / glow_size) * 0.15)
         glow_color = tuple(int(c * (1 - i / glow_size)) for c in color)
-        pygame.draw.circle(surface, glow_color, pos, radius + i, 1)
+        pygame.draw.circle(surface, glow_color, pos, radius + i, 0)
 
-# ============ STATE MANAGEMENT ============ 
+# ============ CAMERA CLASS ============
+@dataclass
+class Camera:
+    x: float = 0.0      # Pan X
+    y: float = 0.0      # Pan Y
+    zoom: float = 1.0   # Zoom level
+    
+    def pan(self, dx, dy):
+        """Move camera by delta"""
+        self.x += dx
+        self.y += dy
+    
+    def zoom_in(self, factor=0.1):
+        """Zoom in by factor"""
+        self.zoom = min(5.0, self.zoom + factor)
+    
+    def zoom_out(self, factor=0.1):
+        """Zoom out by factor"""
+        self.zoom = max(0.1, self.zoom - factor)
+    
+    def reset(self):
+        """Reset camera to default"""
+        self.x = 0.0
+        self.y = 0.0
+        self.zoom = 1.0
+    
+    def apply(self, pos, center_x, center_y, scale=250):
+        """Apply camera transform to a screen position"""
+        sx = int(center_x + (pos[0] * self.zoom * scale) + self.x)
+        sy = int(center_y + (pos[1] * self.zoom * scale) + self.y)
+        return (sx, sy)
+
+# ============ STATE MANAGEMENT ============
 @dataclass
 class Config:
     width: int = 1000
@@ -88,6 +120,9 @@ wire = True
 speed = 1.0
 core_speed = 1.0
 frame_count = 0
+camera = Camera()
+mouse_dragging = False
+last_mouse_pos = (0, 0)
 
 HUD_ITEMS = [
     {"label": "Speed: [▲▼]", "x": 60, "y": 20, "value_y": 40},
@@ -107,9 +142,28 @@ while running:
     core_col = CORE_COLORS[core_idx]
     screen.fill(theme["bg"])
 
+    # ---- MOUSE INPUT ----
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Left click = pan
+                mouse_dragging = True
+                last_mouse_pos = pygame.mouse.get_pos()
+            elif event.button == 4:  # Scroll up = zoom in
+                camera.zoom_in(0.15)
+            elif event.button == 5:  # Scroll down = zoom out
+                camera.zoom_out(0.15)
+        elif event.type == pygame.MOUSEBUTTONUP:
+            if event.button == 1:
+                mouse_dragging = False
+        elif event.type == pygame.MOUSEMOTION:
+            if mouse_dragging:
+                current_pos = pygame.mouse.get_pos()
+                dx = (current_pos[0] - last_mouse_pos[0]) * 0.5
+                dy = (current_pos[1] - last_mouse_pos[1]) * 0.5
+                camera.pan(dx, dy)
+                last_mouse_pos = current_pos
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 running = False
@@ -131,6 +185,8 @@ while running:
                 core_speed = max(0.0, core_speed - 0.2)
             elif event.key == pygame.K_c:
                 core_idx = (core_idx + 1) % len(CORE_COLORS)
+            elif event.key == pygame.K_r:  # Reset camera
+                camera.reset()
 
     if not paused:
         ang[0] += 0.006 * speed
@@ -140,10 +196,17 @@ while running:
         center_ang += 0.02 * core_speed
 
     cx, cy = config.width // 2, config.height // 3 + 50
-    pygame.draw.line(screen, theme["grid"], (100, cy), (config.width - 100, cy), 1)
-    pygame.draw.line(screen, theme["grid"], (cx, 100), (cx, config.height - 300), 1)
-    screen.blit(font.render("X1", True, theme["text"]), (config.width - 120, cy - 15))
-    screen.blit(font.render("X2", True, theme["text"]), (cx + 20, 120))
+    
+    # Draw grid with camera transform
+    grid_x1 = int(100 + camera.x)
+    grid_x2 = int(config.width - 100 + camera.x)
+    grid_y1 = int(cy + camera.y)
+    grid_y2 = int(cy + camera.y)
+    
+    pygame.draw.line(screen, theme["grid"], (grid_x1, grid_y1), (grid_x2, grid_y2), 1)
+    pygame.draw.line(screen, theme["grid"], (int(cx + camera.x), int(100 + camera.y)), (int(cx + camera.x), int(config.height - 300 + camera.y)), 1)
+    screen.blit(font.render("X1", True, theme["text"]), (int(config.width - 120 + camera.x), int(cy - 15 + camera.y)))
+    screen.blit(font.render("X2", True, theme["text"]), (int(cx + 20 + camera.x), int(120 + camera.y)))
 
     if paused:
         pygame.draw.rect(screen, (200, 50, 50), (config.width - 60, 30, 6, 18))
@@ -159,7 +222,8 @@ while running:
             factor = 2.0 / z if persp else 1.0
             x = rot[0] * factor
             y = rot[1] * factor
-            pos_list.append((int(cx + x * 250), int(cy + y * 250)))
+            screen_pos = camera.apply((x, y), cx, cy)
+            pos_list.append(screen_pos)
 
         if wire and len(pos_list) > 1:
             for i in range(len(pos_list)):
@@ -171,8 +235,8 @@ while running:
 
         for p in pos_list:
             if 0 < p[0] < config.width and 0 < p[1] < config.height:
-                draw_glow(screen, col, p, 2, theme["glow"])
-                pygame.draw.circle(screen, col, p, 3)
+                draw_glow(screen, col, p, 2, 5)
+                pygame.draw.circle(screen, col, p, 2)
 
     dist = 0
     if proj_a and proj_b:
@@ -183,7 +247,7 @@ while running:
         final = (mid[0] + shift[0], mid[1] + shift[1])
 
         if 0 < final[0] < config.width and 0 < final[1] < config.height:
-            draw_glow(screen, core_col, final, 7, theme["glow"] + 5)
+            draw_glow(screen, core_col, final, 7, 8)
             pygame.draw.circle(screen, core_col, final, 16, 2)
             pygame.draw.circle(screen, core_col, final, 7)
 
@@ -216,10 +280,10 @@ while running:
         screen.blit(font.render(item["label"], True, theme["text"]), (item["x"], panel_y + item["y"]))
         screen.blit(bold_font.render(hud_values[idx], True, hud_colors[idx]), (item["x"], panel_y + item["value_y"]))
 
-    fps_text = f"FPS: {int(clock.get_fps())}"
-    screen.blit(font.render(fps_text, True, theme["text"]), (config.width - 120, panel_y + 120))
+    fps_text = f"FPS: {int(clock.get_fps())} | Zoom: {camera.zoom:.1f}x"
+    screen.blit(font.render(fps_text, True, theme["text"]), (config.width - 200, panel_y + 120))
 
-    hints = "[SPACE] Pause   [M] Wire   [C] Core   [P] Proj   [T] Theme   [ESC] Quit"
+    hints = "[MOUSE] Drag=Pan Scroll=Zoom   [R] Reset   [SPACE] Pause   [M] Wire   [C] Core   [T] Theme   [ESC] Quit"
     screen.blit(font.render(hints, True, theme["text"]), (60, panel_y + 110))
 
     pygame.display.flip()
