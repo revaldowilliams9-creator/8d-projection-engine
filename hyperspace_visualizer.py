@@ -9,7 +9,7 @@ pygame.init()
 
 W, H = 1000, 800
 screen = pygame.display.set_mode((W, H))
-pygame.display.set_caption("Hyperspace Grid View (8D Projected) - [I] Inject [O] Remove [U] Target")
+pygame.display.set_caption("Hyperspace Grid View (8D Projected) - Auto-Equilibrium Engine")
 clock = pygame.time.Clock()
 font = pygame.font.SysFont("Arial", 12)
 bold_font = pygame.font.SysFont("Arial", 13, bold=True)
@@ -51,6 +51,17 @@ KEYBOARD_HINTS = {
     "View": ["[▲▼] Speed", "[W/S] Core", "[P] Persp", "[M] Wire"],
     "UI": ["[T] Theme", "[C] Color", "[R] Reset", "[SPACE] Pause"],
     "Nav": ["[Click+Drag] Pan", "[Scroll] Zoom"],
+}
+
+# ============ EQUILIBRIUM SYSTEM CONFIG ============
+EQUILIBRIUM_CONFIG = {
+    "target_min": 100,        # Min particles to maintain
+    "target_max": 150,        # Max particles before forced removal
+    "inflow_interval": 1.5,   # Auto-inject every 1.5 seconds
+    "outflow_check_interval": 2.0,  # Check density every 2 seconds
+    "outflow_threshold": 140,  # Trigger removal at this count
+    "inflow_particle_count": 18,    # Particles per injection
+    "outflow_particle_count": 12,   # Particles per removal
 }
 
 # ============ ADD / REMOVE STREAM CLASSES ============
@@ -129,7 +140,7 @@ def get_target_ball(mode, ball_a, ball_b):
     else:  # BALL_B
         return ball_b
 
-def inject_8d_stream(ball_target, num_particles=15, intensity=1.0):
+def inject_8d_stream(ball_target, num_particles=15, intensity=1.0, auto=False):
     """Create a fresh 8D stream and append it to the active cluster."""
     origin = [random.gauss(0, 0.5) for _ in range(8)]
     velocity = [random.gauss(0, 0.3) * intensity for _ in range(8)]
@@ -138,7 +149,7 @@ def inject_8d_stream(ball_target, num_particles=15, intensity=1.0):
     add_streams.append(stream)
     return stream
 
-def remove_8d_stream(ball_target, num_particles=18, intensity=1.0):
+def remove_8d_stream(ball_target, num_particles=18, intensity=1.0, auto=False):
     """Create a removal pulse that strips points from the active cluster."""
     origin = [random.gauss(0, 0.7) for _ in range(8)]
     velocity = [random.gauss(0, 0.25) * intensity for _ in range(8)]
@@ -234,6 +245,11 @@ injection_mode = 0  # 0=AUTO, 1=BALL_A, 2=BALL_B
 injection_cooldown = 0.0
 removal_cooldown = 0.0
 
+# ============ EQUILIBRIUM TIMERS ============
+inflow_timer = 0.0
+outflow_timer = 0.0
+auto_equilibrium_enabled = True
+
 HUD_ITEMS = [
     {"label": "Speed: [▲▼]", "x": 60, "y": 20, "value_y": 40},
     {"label": "Core: [W/S]", "x": 200, "y": 20, "value_y": 40},
@@ -249,6 +265,37 @@ while running:
     dt = clock.tick(config.fps) / 1000.0
     injection_cooldown = max(0, injection_cooldown - dt)
     removal_cooldown = max(0, removal_cooldown - dt)
+
+    # ============ AUTO-EQUILIBRIUM SYSTEM ============
+    if auto_equilibrium_enabled and not paused:
+        inflow_timer += dt
+        outflow_timer += dt
+        
+        total_particles = len(ball_a) + len(ball_b)
+        
+        # NATURAL INFLOW: Auto-inject fresh particles every N seconds
+        if inflow_timer >= EQUILIBRIUM_CONFIG["inflow_interval"]:
+            if total_particles < EQUILIBRIUM_CONFIG["target_max"]:
+                target = ball_a if random.random() > 0.5 else ball_b
+                inject_8d_stream(
+                    target,
+                    num_particles=EQUILIBRIUM_CONFIG["inflow_particle_count"],
+                    intensity=0.8,
+                    auto=True
+                )
+            inflow_timer = 0.0
+        
+        # NATURAL OUTFLOW: Auto-remove particles if density exceeds threshold
+        if outflow_timer >= EQUILIBRIUM_CONFIG["outflow_check_interval"]:
+            if total_particles > EQUILIBRIUM_CONFIG["outflow_threshold"]:
+                target = ball_a if len(ball_a) > len(ball_b) else ball_b
+                remove_8d_stream(
+                    target,
+                    num_particles=EQUILIBRIUM_CONFIG["outflow_particle_count"],
+                    intensity=0.9,
+                    auto=True
+                )
+            outflow_timer = 0.0
 
     theme = THEMES[THEME_NAMES[theme_idx]]
     core_col = CORE_COLORS[core_idx]
@@ -301,12 +348,14 @@ while running:
                 camera.reset()
             elif event.key == pygame.K_u:  # Toggle injection target mode
                 injection_mode = (injection_mode + 1) % len(TARGET_MODES)
-            elif event.key == pygame.K_i:  # Add a fresh 8D stream
+            elif event.key == pygame.K_a:  # Toggle auto-equilibrium
+                auto_equilibrium_enabled = not auto_equilibrium_enabled
+            elif event.key == pygame.K_i:  # Add a fresh 8D stream (manual)
                 if injection_cooldown <= 0:
                     target = get_target_ball(injection_mode, ball_a, ball_b)
                     inject_8d_stream(target, num_particles=20, intensity=1.2)
                     injection_cooldown = 0.35
-            elif event.key == pygame.K_o:  # Remove an 8D stream
+            elif event.key == pygame.K_o:  # Remove an 8D stream (manual)
                 if removal_cooldown <= 0:
                     target = get_target_ball(injection_mode, ball_a, ball_b)
                     remove_8d_stream(target, num_particles=18, intensity=1.0)
@@ -420,6 +469,12 @@ while running:
     target_label = f"Target: {TARGET_MODES[injection_mode]}"
     screen.blit(font.render(target_label, True, target_color), (920, panel_y + 20))
 
+    # Display particle count and equilibrium status
+    total_particles = len(ball_a) + len(ball_b)
+    eq_status = "✓ AUTO" if auto_equilibrium_enabled else "✗ MANUAL"
+    eq_color = (100, 200, 100) if auto_equilibrium_enabled else (255, 100, 100)
+    screen.blit(font.render(f"Particles: {total_particles} | Eq: {eq_status}", True, eq_color), (920, panel_y + 40))
+
     fps_text = f"FPS: {int(clock.get_fps())} | Zoom: {camera.zoom:.1f}x | Add: {len(add_streams)} | Remove: {len(remove_streams)}"
     screen.blit(font.render(fps_text, True, theme["text"]), (config.width - 330, panel_y + 120))
 
@@ -435,6 +490,9 @@ while running:
         # Hints in this category (single line)
         hints_text = "  ".join(hints)
         screen.blit(tiny_font.render(hints_text, True, theme["text"]), (hint_x_start + category_idx * 230, hints_y))
+
+    # Add equilibrium hint
+    screen.blit(tiny_font.render("[A] EQ", True, (150, 200, 150)), (hint_x_start, hints_y + 15))
 
     pygame.display.flip()
 
