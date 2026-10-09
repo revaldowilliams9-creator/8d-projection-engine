@@ -3,15 +3,17 @@ import sys
 import math
 import random
 from dataclasses import dataclass
+from collections import deque
 
 pygame.init()
 
 W, H = 1000, 800
 screen = pygame.display.set_mode((W, H))
-pygame.display.set_caption("Hyperspace Grid View (8D Projected) - Mouse Controls Enabled")
+pygame.display.set_caption("Hyperspace Grid View (8D Projected) - [I] Inject [O] Remove [U] Target")
 clock = pygame.time.Clock()
-font = pygame.font.SysFont("Arial", 14)
-bold_font = pygame.font.SysFont("Arial", 14, bold=True)
+font = pygame.font.SysFont("Arial", 12)
+bold_font = pygame.font.SysFont("Arial", 13, bold=True)
+tiny_font = pygame.font.SysFont("Arial", 11)
 
 # ============ THEMES ============
 THEMES = {
@@ -39,6 +41,111 @@ CORE_COLORS = [
 
 CORE_NAMES = ["White", "Cyan", "Magenta", "Yellow", "Green", "Red", "Blue", "Orange"]
 THEME_NAMES = list(THEMES.keys())
+
+# ============ TARGET MODES ============
+TARGET_MODES = ["AUTO", "BALL_A", "BALL_B"]
+
+# ============ KEYBOARD HINTS (organized by category) ============
+KEYBOARD_HINTS = {
+    "Stream": ["[I] Add", "[O] Remove", "[U] Target"],
+    "View": ["[▲▼] Speed", "[W/S] Core", "[P] Persp", "[M] Wire"],
+    "UI": ["[T] Theme", "[C] Color", "[R] Reset", "[SPACE] Pause"],
+    "Nav": ["[Click+Drag] Pan", "[Scroll] Zoom"],
+}
+
+# ============ ADD / REMOVE STREAM CLASSES ============
+@dataclass
+class AddStream:
+    """Represents a fresh 8D coordinate stream injected into the cluster."""
+    origin: list
+    velocity: list
+    age: float = 0.0
+    lifespan: float = 3.0
+    particle_count: int = 15
+    color_idx: int = 0
+
+    def update(self, dt):
+        self.age += dt
+
+    def is_alive(self):
+        return self.age < self.lifespan
+
+    def apply(self, ball):
+        for i in range(self.particle_count):
+            t = i / max(1, self.particle_count - 1)
+            new_point = [
+                self.origin[j] + self.velocity[j] * t * 2.0 + random.gauss(0, 0.12)
+                for j in range(8)
+            ]
+            ball.append(new_point)
+
+    def get_alpha(self):
+        progress = self.age / self.lifespan
+        return max(0.0, 1.0 - (progress ** 2))
+
+@dataclass
+class RemoveStream:
+    """Represents a removal pulse that strips nearby points from the cluster."""
+    origin: list
+    velocity: list
+    age: float = 0.0
+    lifespan: float = 2.0
+    particle_count: int = 18
+    max_remove: int = 18
+
+    def update(self, dt):
+        self.age += dt
+
+    def is_alive(self):
+        return self.age < self.lifespan
+
+    def apply(self, ball):
+        if not ball:
+            return
+
+        scored = []
+        for pt in ball:
+            dist = math.sqrt(sum((a - b) ** 2 for a, b in zip(pt, self.origin)))
+            scored.append((dist, pt))
+        scored.sort(key=lambda item: item[0])
+
+        for _, pt in scored[: min(self.max_remove, len(scored))]:
+            if pt in ball:
+                ball.remove(pt)
+
+    def get_alpha(self):
+        progress = self.age / self.lifespan
+        return max(0.0, 1.0 - (progress ** 2))
+
+add_streams = deque(maxlen=30)
+remove_streams = deque(maxlen=30)
+
+def get_target_ball(mode, ball_a, ball_b):
+    """Get the target ball based on injection mode."""
+    if mode == 0:  # AUTO
+        return ball_a if random.random() > 0.5 else ball_b
+    elif mode == 1:  # BALL_A
+        return ball_a
+    else:  # BALL_B
+        return ball_b
+
+def inject_8d_stream(ball_target, num_particles=15, intensity=1.0):
+    """Create a fresh 8D stream and append it to the active cluster."""
+    origin = [random.gauss(0, 0.5) for _ in range(8)]
+    velocity = [random.gauss(0, 0.3) * intensity for _ in range(8)]
+    stream = AddStream(origin=origin, velocity=velocity, particle_count=num_particles)
+    stream.apply(ball_target)
+    add_streams.append(stream)
+    return stream
+
+def remove_8d_stream(ball_target, num_particles=18, intensity=1.0):
+    """Create a removal pulse that strips points from the active cluster."""
+    origin = [random.gauss(0, 0.7) for _ in range(8)]
+    velocity = [random.gauss(0, 0.25) * intensity for _ in range(8)]
+    stream = RemoveStream(origin=origin, velocity=velocity, particle_count=num_particles)
+    stream.apply(ball_target)
+    remove_streams.append(stream)
+    return stream
 
 # ============ MATH ENGINE ============
 def rotate_8d(p, a):
@@ -70,26 +177,26 @@ class Camera:
     x: float = 0.0      # Pan X
     y: float = 0.0      # Pan Y
     zoom: float = 1.0   # Zoom level
-    
+
     def pan(self, dx, dy):
         """Move camera by delta"""
         self.x += dx
         self.y += dy
-    
+
     def zoom_in(self, factor=0.1):
         """Zoom in by factor"""
         self.zoom = min(5.0, self.zoom + factor)
-    
+
     def zoom_out(self, factor=0.1):
         """Zoom out by factor"""
         self.zoom = max(0.1, self.zoom - factor)
-    
+
     def reset(self):
         """Reset camera to default"""
         self.x = 0.0
         self.y = 0.0
         self.zoom = 1.0
-    
+
     def apply(self, pos, center_x, center_y, scale=250):
         """Apply camera transform to a screen position"""
         sx = int(center_x + (pos[0] * self.zoom * scale) + self.x)
@@ -123,6 +230,9 @@ frame_count = 0
 camera = Camera()
 mouse_dragging = False
 last_mouse_pos = (0, 0)
+injection_mode = 0  # 0=AUTO, 1=BALL_A, 2=BALL_B
+injection_cooldown = 0.0
+removal_cooldown = 0.0
 
 HUD_ITEMS = [
     {"label": "Speed: [▲▼]", "x": 60, "y": 20, "value_y": 40},
@@ -137,6 +247,8 @@ running = True
 while running:
     frame_count += 1
     dt = clock.tick(config.fps) / 1000.0
+    injection_cooldown = max(0, injection_cooldown - dt)
+    removal_cooldown = max(0, removal_cooldown - dt)
 
     theme = THEMES[THEME_NAMES[theme_idx]]
     core_col = CORE_COLORS[core_idx]
@@ -187,6 +299,29 @@ while running:
                 core_idx = (core_idx + 1) % len(CORE_COLORS)
             elif event.key == pygame.K_r:  # Reset camera
                 camera.reset()
+            elif event.key == pygame.K_u:  # Toggle injection target mode
+                injection_mode = (injection_mode + 1) % len(TARGET_MODES)
+            elif event.key == pygame.K_i:  # Add a fresh 8D stream
+                if injection_cooldown <= 0:
+                    target = get_target_ball(injection_mode, ball_a, ball_b)
+                    inject_8d_stream(target, num_particles=20, intensity=1.2)
+                    injection_cooldown = 0.35
+            elif event.key == pygame.K_o:  # Remove an 8D stream
+                if removal_cooldown <= 0:
+                    target = get_target_ball(injection_mode, ball_a, ball_b)
+                    remove_8d_stream(target, num_particles=18, intensity=1.0)
+                    removal_cooldown = 0.40
+
+    # Update active streams
+    for stream in list(add_streams):
+        stream.update(dt)
+        if not stream.is_alive():
+            add_streams.remove(stream)
+
+    for stream in list(remove_streams):
+        stream.update(dt)
+        if not stream.is_alive():
+            remove_streams.remove(stream)
 
     if not paused:
         ang[0] += 0.006 * speed
@@ -196,13 +331,13 @@ while running:
         center_ang += 0.02 * core_speed
 
     cx, cy = config.width // 2, config.height // 3 + 50
-    
+
     # Draw grid with camera transform
     grid_x1 = int(100 + camera.x)
     grid_x2 = int(config.width - 100 + camera.x)
     grid_y1 = int(cy + camera.y)
     grid_y2 = int(cy + camera.y)
-    
+
     pygame.draw.line(screen, theme["grid"], (grid_x1, grid_y1), (grid_x2, grid_y2), 1)
     pygame.draw.line(screen, theme["grid"], (int(cx + camera.x), int(100 + camera.y)), (int(cx + camera.x), int(config.height - 300 + camera.y)), 1)
     screen.blit(font.render("X1", True, theme["text"]), (int(config.width - 120 + camera.x), int(cy - 15 + camera.y)))
@@ -280,11 +415,26 @@ while running:
         screen.blit(font.render(item["label"], True, theme["text"]), (item["x"], panel_y + item["y"]))
         screen.blit(bold_font.render(hud_values[idx], True, hud_colors[idx]), (item["x"], panel_y + item["value_y"]))
 
-    fps_text = f"FPS: {int(clock.get_fps())} | Zoom: {camera.zoom:.1f}x"
-    screen.blit(font.render(fps_text, True, theme["text"]), (config.width - 200, panel_y + 120))
+    # Display injection target mode
+    target_color = (100, 255, 100) if injection_mode > 0 else (255, 200, 100)
+    target_label = f"Target: {TARGET_MODES[injection_mode]}"
+    screen.blit(font.render(target_label, True, target_color), (920, panel_y + 20))
 
-    hints = "[MOUSE] Drag=Pan Scroll=Zoom   [R] Reset   [SPACE] Pause   [M] Wire   [C] Core   [T] Theme   [ESC] Quit"
-    screen.blit(font.render(hints, True, theme["text"]), (60, panel_y + 110))
+    fps_text = f"FPS: {int(clock.get_fps())} | Zoom: {camera.zoom:.1f}x | Add: {len(add_streams)} | Remove: {len(remove_streams)}"
+    screen.blit(font.render(fps_text, True, theme["text"]), (config.width - 330, panel_y + 120))
+
+    # ========== CLEAN KEYBOARD HINTS SECTION ==========
+    hints_y = panel_y + 108
+    hint_x_start = 60
+    
+    for category_idx, (category, hints) in enumerate(KEYBOARD_HINTS.items()):
+        # Category title
+        cat_color = (100, 200, 255) if category == "Stream" else (200, 200, 100) if category == "View" else (150, 150, 200)
+        screen.blit(tiny_font.render(category.upper(), True, cat_color), (hint_x_start + category_idx * 230, hints_y - 12))
+        
+        # Hints in this category (single line)
+        hints_text = "  ".join(hints)
+        screen.blit(tiny_font.render(hints_text, True, theme["text"]), (hint_x_start + category_idx * 230, hints_y))
 
     pygame.display.flip()
 
